@@ -1,0 +1,12 @@
+{
+  "name": "webhook-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hands-on lab for learning how webhooks work and how to debug them",
+  "scripts": {
+    "receiver": "node receiver/server.js",
+    "send": "node sender/send.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": { "node": ">=18" }
+}
