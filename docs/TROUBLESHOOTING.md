@@ -57,4 +57,4 @@ curl -s localhost:3000/events
 - Request inspectors (webhook.site, RequestBin) to see exactly what the provider sends
 - Tunnels (ngrok, Cloudflare Tunnel) for local development
 - Provider CLIs (e.g. `stripe listen`, `gh webhook forward`) to forward events locally
-- `curl -v` and `node sender/send.js` to simulate
+- `curl -v` and `node sender/send.ts` to simulate

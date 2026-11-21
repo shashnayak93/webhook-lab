@@ -1,24 +1,40 @@
-'use strict';
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { verify } = require('../lib/signature');
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { verify } from '../lib/signature.ts';
 
 // Every rejection/accept is logged with a machine-readable reason: when
 // debugging webhooks, "why did we respond that way?" is the first question.
 
-function createServer({
+export interface WebhookEvent {
+  id: string;
+  type: string;
+  created?: number;
+  data?: unknown;
+}
+
+export interface ServerOptions {
+  secret?: string;
+  logFile?: string;
+  maxBodyBytes?: number;
+  quiet?: boolean;
+}
+
+export type WebhookServer = http.Server & { events: WebhookEvent[] };
+
+export function createServer({
   secret = process.env.WEBHOOK_SECRET || 'whsec_dev_secret',
-  logFile = path.join(__dirname, 'events.jsonl'),
+  logFile = path.join(import.meta.dirname, 'events.jsonl'),
   maxBodyBytes = 1024 * 1024,
   quiet = false,
-} = {}) {
-  const processed = new Set(); // idempotency store (use a DB unique key in production)
-  const events = [];
+}: ServerOptions = {}): WebhookServer {
+  const processed = new Set<string>(); // idempotency store (use a DB unique key in production)
+  const events: WebhookEvent[] = [];
 
-  const log = (...a) => { if (!quiet) console.log(new Date().toISOString(), ...a); };
+  const log = (...a: unknown[]) => { if (!quiet) console.log(new Date().toISOString(), ...a); };
 
-  function handleEvent(evt) {
+  function handleEvent(evt: WebhookEvent) {
     // Do slow work AFTER responding. Providers time out in seconds.
     events.push(evt);
     fs.appendFileSync(logFile, JSON.stringify(evt) + '\n');
@@ -26,8 +42,8 @@ function createServer({
   }
 
   const server = http.createServer((req, res) => {
-    const url = new URL(req.url, 'http://localhost');
-    const send = (code, body) => {
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const send = (code: number, body: unknown) => {
       res.writeHead(code, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(body));
     };
@@ -38,9 +54,9 @@ function createServer({
 
     // Collect the RAW bytes. Signatures are computed over the exact bytes sent;
     // parsing then re-serializing JSON changes them and breaks verification.
-    const chunks = [];
+    const chunks: Buffer[] = [];
     let size = 0;
-    req.on('data', (c) => {
+    req.on('data', (c: Buffer) => {
       size += c.length;
       if (size > maxBodyBytes) { send(413, { error: 'payload_too_large' }); req.destroy(); return; }
       chunks.push(c);
@@ -55,36 +71,34 @@ function createServer({
       if (chaos === 'drop') { log('chaos: dropping connection'); return req.socket.destroy(); }
       if (/^\d{3}$/.test(chaos || '')) { log('chaos: forced', chaos); return send(Number(chaos), { error: 'chaos' }); }
 
-      const v = verify(secret, req.headers['x-signature'], raw);
+      const v = verify(secret, req.headers['x-signature'] as string | undefined, raw);
       if (!v.ok) {
         log('rejected', v.reason);
         return send(400, { error: v.reason });
       }
 
-      let evt;
+      let evt: Partial<WebhookEvent>;
       try { evt = JSON.parse(raw.toString('utf8')); }
       catch { log('rejected invalid_json'); return send(400, { error: 'invalid_json' }); }
       if (!evt.id || !evt.type) return send(400, { error: 'missing_id_or_type' });
+      const event = evt as WebhookEvent;
 
       // Providers deliver AT LEAST once. Duplicates are normal; ack them with 2xx.
-      if (processed.has(evt.id)) {
-        log('duplicate (ignored)', evt.id);
+      if (processed.has(event.id)) {
+        log('duplicate (ignored)', event.id);
         return send(200, { status: 'duplicate' });
       }
-      processed.add(evt.id);
+      processed.add(event.id);
 
-      send(200, { status: 'received' });    // ack fast...
-      setImmediate(() => handleEvent(evt)); // ...process later
+      send(200, { status: 'received' });      // ack fast...
+      setImmediate(() => handleEvent(event)); // ...process later
     });
   });
 
-  server.events = events;
-  return server;
+  return Object.assign(server, { events });
 }
 
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = process.env.PORT || 3000;
   createServer().listen(port, () => console.log(`receiver listening on :${port}  (POST /webhook)`));
 }
-
-module.exports = { createServer };

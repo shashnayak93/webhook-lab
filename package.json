@@ -2,11 +2,19 @@
   "name": "webhook-lab",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Hands-on lab for learning how webhooks work and how to debug them",
   "scripts": {
-    "receiver": "node receiver/server.js",
-    "send": "node sender/send.js",
-    "test": "node --test test/*.test.js"
+    "receiver": "node receiver/server.ts",
+    "send": "node sender/send.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=22.18"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2"
+  }
 }
