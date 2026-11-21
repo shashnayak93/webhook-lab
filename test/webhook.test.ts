@@ -1,22 +1,22 @@
-'use strict';
-const test = require('node:test');
-const assert = require('node:assert');
-const os = require('os');
-const path = require('path');
-const { createServer } = require('../receiver/server');
-const { buildHeader } = require('../lib/signature');
+import test from 'node:test';
+import assert from 'node:assert';
+import os from 'node:os';
+import path from 'node:path';
+import type { AddressInfo } from 'node:net';
+import { createServer, type WebhookEvent, type WebhookServer } from '../receiver/server.ts';
+import { buildHeader } from '../lib/signature.ts';
 
 const SECRET = 'test_secret';
-let server, base;
+let server: WebhookServer, base: string;
 
 test.before(async () => {
   server = createServer({ secret: SECRET, logFile: path.join(os.tmpdir(), `wh-${Date.now()}.jsonl`), quiet: true });
-  await new Promise((r) => server.listen(0, r));
-  base = `http://localhost:${server.address().port}/webhook`;
+  await new Promise<void>((r) => server.listen(0, r));
+  base = `http://localhost:${(server.address() as AddressInfo).port}/webhook`;
 });
 test.after(() => server.close());
 
-const post = (evt, { header, raw, query = '' } = {}) => {
+const post = (evt: WebhookEvent | null, { header, raw, query = '' }: { header?: string; raw?: string; query?: string } = {}) => {
   const body = raw ?? JSON.stringify(evt);
   return fetch(base + query, {
     method: 'POST',
@@ -24,7 +24,7 @@ const post = (evt, { header, raw, query = '' } = {}) => {
     body,
   });
 };
-const evt = (id) => ({ id, type: 'order.created', data: {} });
+const evt = (id: string): WebhookEvent => ({ id, type: 'order.created', data: {} });
 
 test('valid signed event is accepted', async () => {
   const res = await post(evt('evt_1'));

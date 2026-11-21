@@ -2,7 +2,7 @@
 
 A hands-on path from "what is a webhook?" to debugging real integrations. Each phase has a concept, an exercise using the `webhook-lab` code, and a "you're done when" check. Budget roughly 30–60 minutes per phase.
 
-**Lab setup (once):** Node 18+, no installs needed.
+**Lab setup (once):** Node 22.18+ (runs the `.ts` files directly), no installs needed.
 ```
 npm run receiver          # terminal 1: listens on :3000
 npm run send              # terminal 2: sends one signed event
@@ -30,7 +30,7 @@ npm test                  # 7 tests covering the scenarios below
 
 **Exercise**
 1. Start the receiver, run `npm run send`. Read the receiver log.
-2. Read `receiver/server.js` top to bottom. Find where it responds vs where it processes.
+2. Read `receiver/server.ts` top to bottom. Find where it responds vs where it processes.
 3. Hit `GET /events` to see what was stored.
 4. Try `curl -X POST localhost:3000/webhook -d '{}'`. What status and why?
 
@@ -44,8 +44,8 @@ npm test                  # 7 tests covering the scenarios below
 **Exercise**
 1. `npm run send -- --scenario bad-sig` → expect 400 `signature_mismatch`.
 2. `npm run send -- --scenario stale` → expect `timestamp_out_of_tolerance`.
-3. Read `lib/signature.js`. Why does it check buffer length before `timingSafeEqual`?
-4. **Break it on purpose:** in `receiver/server.js`, parse the JSON first and verify against `JSON.stringify(parsed)`. Run `npm test`. Which test fails, and why? (This is the #1 real-world signature bug.)
+3. Read `lib/signature.ts`. Why does it check buffer length before `timingSafeEqual`?
+4. **Break it on purpose:** in `receiver/server.ts`, parse the JSON first and verify against `JSON.stringify(parsed)`. Run `npm test`. Which test fails, and why? (This is the #1 real-world signature bug.)
 
 **Done when:** you can explain why the raw bytes matter and why the timestamp is part of the signed string.
 
@@ -108,7 +108,7 @@ npm test                  # 7 tests covering the scenarios below
 **Exercise**
 1. Expose your local server with a tunnel (e.g. ngrok or Cloudflare Tunnel) and point a real provider's test mode at it (Stripe, GitHub, Shopify, Slack all have free webhook testing).
 2. Use the provider's delivery log to compare their request to your receiver log.
-3. Adapt `lib/signature.js` to the provider's documented scheme.
+3. Adapt `lib/signature.ts` to the provider's documented scheme.
 4. Use the provider's "resend" button to practice replay.
 
 **Done when:** a real provider's event is verified, deduped, and processed end to end.

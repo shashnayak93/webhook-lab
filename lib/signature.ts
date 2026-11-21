@@ -1,24 +1,37 @@
-'use strict';
-const crypto = require('crypto');
+import crypto from 'node:crypto';
 
 // Scheme (Stripe-style): header "X-Signature: t=<unix seconds>,v1=<hex hmac>"
 // hmac = HMAC_SHA256(secret, `${t}.${rawBody}`)
 // Signing the timestamp too lets the receiver reject replayed old requests.
 
-function sign(secret, timestamp, rawBody) {
+export type VerifyResult =
+  | { ok: true }
+  | { ok: false; reason: 'missing_signature' | 'malformed_signature' | 'timestamp_out_of_tolerance' | 'signature_mismatch' };
+
+export interface VerifyOptions {
+  now?: number;
+  toleranceSec?: number;
+}
+
+export function sign(secret: string, timestamp: number, rawBody: Buffer): string {
   return crypto
     .createHmac('sha256', secret)
     .update(`${timestamp}.${rawBody.toString('utf8')}`)
     .digest('hex');
 }
 
-function buildHeader(secret, rawBody, timestamp = Math.floor(Date.now() / 1000)) {
+export function buildHeader(secret: string, rawBody: Buffer, timestamp: number = Math.floor(Date.now() / 1000)): string {
   return `t=${timestamp},v1=${sign(secret, timestamp, rawBody)}`;
 }
 
-function verify(secret, header, rawBody, { now = Math.floor(Date.now() / 1000), toleranceSec = 300 } = {}) {
+export function verify(
+  secret: string,
+  header: string | undefined,
+  rawBody: Buffer,
+  { now = Math.floor(Date.now() / 1000), toleranceSec = 300 }: VerifyOptions = {}
+): VerifyResult {
   if (!header) return { ok: false, reason: 'missing_signature' };
-  const parts = Object.fromEntries(
+  const parts: Record<string, string | undefined> = Object.fromEntries(
     header.split(',').map((p) => p.trim().split('=', 2))
   );
   const t = Number(parts.t);
@@ -33,5 +46,3 @@ function verify(secret, header, rawBody, { now = Math.floor(Date.now() / 1000), 
   }
   return { ok: true };
 }
-
-module.exports = { sign, buildHeader, verify };
